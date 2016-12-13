@@ -126,7 +126,7 @@ self.addEventListener('fetch', function (event) {
 				}
 				var responseClone = response.clone();
 				caches.open('my-test-cache-v1').then(function (cache) {
-					cache.get(event.request, responseClone);
+					cache.put(event.request, responseClone);
 				});
 				return response;
 			});
@@ -141,6 +141,27 @@ self.addEventListener('fetch', function (event) {
 service worker请求的过程通过fetch api完成，得到response对象以后进行过滤，查看是否有图片文件，如果不是，就直接返回请求，不会缓存。
 
 这就是service worker的强大之处：拦截请求，伪造响应。fetch api在这里起到了很大的作用。
+
+service worker的更新很简单，只要service-worker.js的文件内容有更新，就会是用新脚本。但是有一点要注意：旧缓存文件的清除、新文件的缓存要在activate事件中进行，因为可能旧的页面还在使用之前的缓存文件，清除之后会失去作用。
+
+*在初次使用service worker的过程中，也遇到了一些问题，下面是其中两个*
+
+##### 问题1 运行时间
+
+service worker并不是一直在后台运行的。在页面关闭后，浏览器可以继续保持service worker运行，也可以关闭service worker，这取决于浏览器自己的行为。所以不要定义一些全局变量，例如下面的代码
+
+```javascript
+var hitCounter = 0;
+this.addEventListener('fetch', function (event) {
+	hitCount++;
+	event.responseWith(new Response('Hit Number ' + hitCounter));
+});
+```
+	返回的结果可能是没有规律的1,2,2,3,1,2,1,1...，原因是hitCounter并没有一直存在，如果浏览器关闭了，下次启动的时候hitCounter就赋值为0了。
+	这样的事情导致调试代码困难，当你更新一个service worker以后，只有在打开新页面以后才可能使用新的service worker，在调试过程中经常等一两分钟才会使用新的。
+
+##### 问题2 权限太大
+当service worker监听fetch事件以后，对应的请求都会经过service worker。通过chrome的network工具，可以看到类似请求会标注：from service worker。如果service worker中出现了问题，会导致所有请求失败，包括普通的Html文件。所以service worker的代码质量、容错性一定要很好才能保证web app正常运行。
 
 [原文地址](http://www.alloyteam.com/2016/01/9274/)
 * [Service Worker 入门](https://www.w3ctech.com/topic/866)
